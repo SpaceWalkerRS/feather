@@ -1,0 +1,101 @@
+import net.ornithemc.keratin.api.TaskSelection
+import net.ornithemc.keratin.api.task.mapping.graph.ExtendGraphTask
+
+import net.fabricmc.filament.task.MappingPoetTask
+
+plugins {
+	id 'java'
+	id 'maven-publish'
+	id 'keratin' version '41.2'
+}
+
+def ENV = System.getenv()
+
+keratin {
+	if (ENV.MC_VERSION) {
+		minecraftVersion ENV.MC_VERSION
+	} else if (ENV.MC_VERSIONS) {
+		minecraftVersions ENV.MC_VERSIONS.split('[,]')
+	}
+	intermediaryGen = 2
+
+	tasks TaskSelection.MAPPINGS
+}
+
+tasks.withType(ExtendGraphTask, {
+	if (ENV.FROM_MC_VERSIONS) {
+		fromMinecraftVersions ENV.FROM_MC_VERSIONS.split('[,]')
+	}
+})
+
+tasks.withType(Javadoc, {
+	it.outputs.upToDateWhen { false }
+
+	// verbose = true // enable to debug
+	it.options {
+		// verbose() // enable to debug
+		source = "8"
+		encoding = 'UTF-8'
+		charSet = 'UTF-8'
+		memberLevel = JavadocMemberLevel.PRIVATE
+		splitIndex true
+		tags(
+				'apiNote:a:API Note:',
+				'implSpec:a:Implementation Requirements:',
+				'implNote:a:Implementation Note:'
+		)
+		taglets "net.fabricmc.filament.mappingpoet.jd.MappingTaglet"
+		// taglet path, header, extra stylesheet settings deferred
+		it.use()
+
+		addBooleanOption "-allow-script-in-comments", true
+		addBooleanOption "-ignore-source-errors", true
+		links(
+				'https://guava.dev/releases/21.0/api/docs/',
+				'https://www.javadoc.io/doc/com.google.code.gson/gson/2.8.0/',
+				'https://logging.apache.org/log4j/2.x/javadoc/log4j-api/',
+				// jsr305 need to come before jdk or the anno links are broken
+				'https://www.javadoc.io/doc/com.google.code.findbugs/jsr305/3.0.2/',
+				'https://javadoc.lwjgl.org/',
+				'https://fastutil.di.unimi.it/docs/',
+				'https://netty.io/4.1/api/',
+				'https://commons.apache.org/proper/commons-logging/javadocs/api-1.1.3/',
+				'https://commons.apache.org/proper/commons-lang/javadocs/api-3.5',
+				'https://commons.apache.org/proper/commons-io/javadocs/api-2.5',
+				'https://commons.apache.org/proper/commons-codec/archives/1.10/apidocs',
+				'https://javadoc.io/doc/org.apache.commons/commons-compress/1.8.1',
+				"https://maven.fabricmc.net/docs/fabric-loader-0.15.11/",
+				"https://docs.oracle.com/en/java/javase/11/docs/api/"
+				// Need to add loader jd publication for env annotations!
+		)
+		// https://docs.oracle.com/en/java/javase/17/docs/specs/man/javadoc.html#additional-options-provided-by-the-standard-doclet
+		addBooleanOption 'Xdoclint:html', true
+		addBooleanOption 'Xdoclint:syntax', true
+		addBooleanOption 'Xdoclint:reference', true
+		addBooleanOption 'Xdoclint:accessibility', true
+	}
+	
+	def filamentCodeSource = MappingPoetTask.class.getProtectionDomain().getCodeSource()
+	def filamentJarFile = new File(filamentCodeSource.getLocation().getFile())
+
+	options {
+		tagletPath = [filamentJarFile]
+	}
+})
+
+publishing {
+	repositories {
+		if (ENV.MAVEN_URL) {
+			maven {
+				url ENV.MAVEN_URL
+				credentials {
+					username ENV.MAVEN_USERNAME
+					password ENV.MAVEN_PASSWORD
+				}
+				authentication {
+					basic(BasicAuthentication)
+				}
+			}
+		}
+	}
+}
